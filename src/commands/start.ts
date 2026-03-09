@@ -395,6 +395,24 @@ export async function start(args: string[] = []) {
   await initDiscord(currentSettings.discord.token);
   if (!discordToken) console.log("  Discord: not configured");
 
+  // --- Slack (forwarding only — the bridge runs via `claudeclaw slack`) ---
+  let slackBotToken = "";
+  let slackChannelId = "";
+
+  function initSlack(botToken: string, channelId: string) {
+    if (botToken && channelId) {
+      slackBotToken = botToken;
+      slackChannelId = channelId;
+      if (!slackBotToken) console.log(`[${ts()}] Slack: enabled (forwarding to ${channelId})`);
+    } else {
+      slackBotToken = "";
+      slackChannelId = "";
+    }
+  }
+
+  initSlack(currentSettings.slack.botToken, currentSettings.slack.channelId);
+  if (!slackBotToken) console.log("  Slack: not configured (set slack.botToken + slack.channelId)");
+
   function isAddrInUse(err: unknown): boolean {
     if (!err || typeof err !== "object") return false;
     const code = "code" in err ? String((err as { code?: unknown }).code) : "";
@@ -519,6 +537,18 @@ export async function start(args: string[] = []) {
     }
   }
 
+  function forwardToSlack(label: string, result: { exitCode: number; stdout: string; stderr: string }) {
+    if (!slackBotToken || !slackChannelId) return;
+    const text = result.exitCode === 0
+      ? `${label ? `*[${label}]*\n` : ""}${result.stdout || "(empty)"}`
+      : `${label ? `*[${label}]* ` : ""}error (exit ${result.exitCode}): ${result.stderr || "Unknown"}`;
+    import("../slack").then(({ sendSlackResult }) =>
+      sendSlackResult(slackBotToken, slackChannelId, text).catch((err) =>
+        console.error(`[Slack] Failed to forward: ${err}`)
+      )
+    );
+  }
+
   // --- Heartbeat scheduling ---
   function scheduleHeartbeat() {
     if (heartbeatTimer) clearTimeout(heartbeatTimer);
@@ -568,6 +598,7 @@ export async function start(args: string[] = []) {
           if (shouldForward) {
             forwardToTelegram("", r);
             forwardToDiscord("", r);
+            forwardToSlack("", r);
           }
         });
       nextHeartbeatAt = nextAllowedHeartbeatAt(
@@ -593,6 +624,7 @@ export async function start(args: string[] = []) {
     console.log(triggerResult.stdout);
     if (telegramFlag) forwardToTelegram("", triggerResult);
     if (discordFlag) forwardToDiscord("", triggerResult);
+    forwardToSlack("", triggerResult);
     if (triggerResult.exitCode !== 0) {
       console.error(`[${ts()}] Startup trigger failed (exit ${triggerResult.exitCode}). Daemon will continue running.`);
     }
@@ -658,6 +690,9 @@ export async function start(args: string[] = []) {
 
       // Discord changes
       await initDiscord(newSettings.discord.token);
+
+      // Slack changes
+      initSlack(newSettings.slack.botToken, newSettings.slack.channelId);
     } catch (err) {
       console.error(`[${ts()}] Hot-reload error:`, err);
     }
@@ -677,6 +712,7 @@ export async function start(args: string[] = []) {
       security: currentSettings.security.level,
       telegram: !!currentSettings.telegram.token,
       discord: !!currentSettings.discord.token,
+      slack: !!currentSettings.slack.botToken,
       startedAt: daemonStartedAt,
       web: {
         enabled: !!web,
@@ -700,6 +736,7 @@ export async function start(args: string[] = []) {
             if (job.notify === "error" && r.exitCode === 0) return;
             forwardToTelegram(job.name, r);
             forwardToDiscord(job.name, r);
+            forwardToSlack(job.name, r);
           })
           .finally(async () => {
             if (job.recurring) return;

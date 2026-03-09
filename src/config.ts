@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS: Settings = {
   },
   telegram: { token: "", allowedUserIds: [] },
   discord: { token: "", allowedUserIds: [] },
+  slack: { botToken: "", channelId: "", redisUrl: "", inboxKey: "", allowedUserIds: [] },
   security: { level: "moderate", allowedTools: [], disallowedTools: [] },
   web: { enabled: false, host: "127.0.0.1", port: 4632 },
   stt: { baseUrl: "", model: "" },
@@ -55,6 +56,14 @@ export interface DiscordConfig {
   allowedUserIds: string[]; // Discord snowflake IDs exceed Number.MAX_SAFE_INTEGER
 }
 
+export interface SlackConfig {
+  botToken: string;
+  channelId: string;        // Default channel for forwarding heartbeat/cron results
+  redisUrl: string;          // Redis connection URL for bridge mode
+  inboxKey: string;          // Redis queue key (e.g., "vanguardclaw:bot:inbox:claw")
+  allowedUserIds: string[];  // Slack user IDs authorized to interact
+}
+
 export type SecurityLevel =
   | "locked"
   | "strict"
@@ -76,6 +85,7 @@ export interface Settings {
   heartbeat: HeartbeatConfig;
   telegram: TelegramConfig;
   discord: DiscordConfig;
+  slack: SlackConfig;
   security: SecurityConfig;
   web: WebConfig;
   stt: SttConfig;
@@ -156,6 +166,15 @@ function parseSettings(raw: Record<string, any>, discordUserIds?: string[]): Set
         : Array.isArray(raw.discord?.allowedUserIds)
           ? raw.discord.allowedUserIds.map(String)
           : [],
+    },
+    slack: {
+      botToken: typeof raw.slack?.botToken === "string" ? raw.slack.botToken.trim() : "",
+      channelId: typeof raw.slack?.channelId === "string" ? raw.slack.channelId.trim() : "",
+      redisUrl: typeof raw.slack?.redisUrl === "string" ? raw.slack.redisUrl.trim() : "",
+      inboxKey: typeof raw.slack?.inboxKey === "string" ? raw.slack.inboxKey.trim() : "",
+      allowedUserIds: Array.isArray(raw.slack?.allowedUserIds)
+        ? raw.slack.allowedUserIds.map(String)
+        : [],
     },
     security: {
       level,
