@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# ClaudeClaw launcher — runs from /opt/VanguardForge as project dir
+# Usage: claw [start|stop|status|slack|send ...]
+set -euo pipefail
+
+CLAUDECLAW_HOME="/opt/claudeclaw"
+PROJECT_DIR="/opt/VanguardForge"
+BUN="${HOME}/.bun/bin/bun"
+
+cd "$PROJECT_DIR"
+exec "$BUN" run "$CLAUDECLAW_HOME/src/index.ts" "$@"

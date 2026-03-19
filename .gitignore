@@ -2,3 +2,9 @@
 node_modules
 .codemachine
 AGENTS.md
+
+# ── Tool/agent artifacts ──
+.gsd/
+.bg-shell/
+.serena/
+.codex/
